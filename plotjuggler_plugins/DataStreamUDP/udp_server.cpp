@@ -96,34 +96,41 @@ bool UDP_Server::start(QStringList*)
 
   // load previous values
   QSettings settings;
-  QString protocol = settings.value("UDP_Server::protocol", "JSON").toString();
   QString address_str = settings.value("UDP_Server::address", "127.0.0.1").toString();
   int port = settings.value("UDP_Server::port", 9870).toInt();
+  QString protocol = settings.value("UDP_Server::protocol").toString();
+  if (parserFactories()->find(protocol) == parserFactories()->end())
+  {
+    protocol = "json";
+  }
 
   dialog.ui->lineEditAddress->setText(address_str);
   dialog.ui->lineEditPort->setText(QString::number(port));
 
   ParserFactoryPlugin::Ptr parser_creator;
 
+  auto onComboChanged = [&](const QString& selected_protocol) {
+    if (parser_creator)
+    {
+      if (auto prev_widget = parser_creator->optionsWidget())
+      {
+        prev_widget->setVisible(false);
+      }
+    }
+    parser_creator = parserFactories()->at(selected_protocol);
+
+    if (auto widget = parser_creator->optionsWidget())
+    {
+      widget->setVisible(true);
+    }
+  };
+
   connect(dialog.ui->comboBoxProtocol,
           qOverload<const QString&>(&QComboBox::currentIndexChanged), this,
-          [&](const QString& selected_protocol) {
-            if (parser_creator)
-            {
-              if (auto prev_widget = parser_creator->optionsWidget())
-              {
-                prev_widget->setVisible(false);
-              }
-            }
-            parser_creator = parserFactories()->at(selected_protocol);
-
-            if (auto widget = parser_creator->optionsWidget())
-            {
-              widget->setVisible(true);
-            }
-          });
+          onComboChanged);
 
   dialog.ui->comboBoxProtocol->setCurrentText(protocol);
+  onComboChanged(protocol);
 
   int res = dialog.exec();
   if (res == QDialog::Rejected)
